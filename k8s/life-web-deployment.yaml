@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: homepage-web
-  namespace: homepage
+  name: life-web
+  namespace: life
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: homepage-web
+      app: life-web
   template:
     metadata:
       labels:
-        app: homepage-web
+        app: life-web
     spec:
       containers:
       - name: nginx
@@ -24,4 +24,4 @@ spec:
       volumes:
       - name: html-volume
         configMap:
-          name: homepage-web-nginx-conf
+          name: life-web-nginx-conf

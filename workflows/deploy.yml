@@ -20,12 +20,12 @@ jobs:
 
       - name: Update index.html ConfigMap
         run: |
-          kubectl create configmap homepage-web-nginx-conf \
+          kubectl create configmap life-web-nginx-conf \
             --from-file=index.html=index.html \
-            -n homepage \
+            -n life \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Roll out homepage
+      - name: Roll out life-web deployment
         run: |
-          kubectl rollout restart deployment/homepage-web -n homepage
-          kubectl rollout status deployment/homepage-web -n homepage --timeout=120s
+          kubectl rollout restart deployment/life-web -n life
+          kubectl rollout status deployment/life-web -n life --timeout=120s
