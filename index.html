@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>game of life</title>
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    --bg: #000000;
+    --panel: #000000;
+    --border: #000000;
+    --text: #ffffff;
+    --muted: #ffffff;
+    --accent: #ffffff;
+    --accent-hover: #ffffff;
+    --cell-alive: #ffffff;
+    --cell-dead: #000000;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #000000;
+      --panel: #000000;
+      --border: #000000;
+      --text: #ffffff;
+      --muted: #ffffff;
+      --accent: #ffffff;
+      --accent-hover: #ffffff;
+      --cell-alive: #ffffff;
+      --cell-dead: #000000;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #000000;
+    --panel: #000000;
+    --border: #000000;
+    --text: #ffffff;
+    --muted: #ffffff;
+    --accent: #ffffff;
+    --accent-hover: #ffffff;
+    --cell-alive: #ffffff;
+    --cell-dead: #000000;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: crosshair;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="grid"></canvas>
+
+<script>
+(function () {
+  const canvas = document.getElementById('grid');
+  const ctx = canvas.getContext('2d');
+
+  const CELL = 12; // px per cell
+  let cols, rows;
+  let grid, next;
+  let running = true;
+  let lastStep = 0;
+  let stepInterval = 1000 / 10; // ms, derived from speed slider
+  let isDrawing = false;
+  let drawValue = 1;
+
+  function idx(x, y) { return y * cols + x; }
+
+  function resize() {
+    const rect = { width: window.innerWidth, height: window.innerHeight };
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const newCols = Math.max(4, Math.floor(rect.width / CELL));
+    const newRows = Math.max(4, Math.floor(rect.height / CELL));
+
+    const oldGrid = grid, oldCols = cols, oldRows = rows;
+    cols = newCols;
+    rows = newRows;
+    grid = new Uint8Array(cols * rows);
+    next = new Uint8Array(cols * rows);
+
+    if (oldGrid) {
+      const cw = Math.min(oldCols, cols);
+      const ch = Math.min(oldRows, rows);
+      for (let y = 0; y < ch; y++) {
+        for (let x = 0; x < cw; x++) {
+          grid[idx(x, y)] = oldGrid[y * oldCols + x];
+        }
+      }
+    } else {
+      randomize();
+    }
+    draw();
+  }
+
+  function randomize() {
+    for (let i = 0; i < grid.length; i++) {
+      grid[i] = Math.random() > 0.72 ? 1 : 0;
+    }
+  }
+
+  function clearGrid() {
+    grid.fill(0);
+  }
+
+  function countNeighbors(x, y) {
+    let n = 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || nx >= cols || ny < 0 || ny >= rows) continue;
+        n += grid[idx(nx, ny)];
+      }
+    }
+    return n;
+  }
+
+  function step() {
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const alive = grid[idx(x, y)];
+        const n = countNeighbors(x, y);
+        let result = 0;
+        if (alive) {
+          result = (n === 2 || n === 3) ? 1 : 0;
+        } else {
+          result = (n === 3) ? 1 : 0;
+        }
+        next[idx(x, y)] = result;
+      }
+    }
+    const tmp = grid;
+    grid = next;
+    next = tmp;
+  }
+
+  function draw() {
+    const styles = getComputedStyle(document.documentElement);
+    const aliveColor = styles.getPropertyValue('--cell-alive').trim() || '#58a6ff';
+    const deadColor = styles.getPropertyValue('--cell-dead').trim() || '#1c2128';
+
+    ctx.fillStyle = deadColor;
+    ctx.fillRect(0, 0, cols * CELL, rows * CELL);
+
+    ctx.fillStyle = aliveColor;
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        if (grid[idx(x, y)]) {
+          ctx.fillRect(x * CELL, y * CELL, CELL - 1, CELL - 1);
+        }
+      }
+    }
+  }
+
+  function loop(ts) {
+    if (running && ts - lastStep >= stepInterval) {
+      step();
+      draw();
+      lastStep = ts;
+    }
+    requestAnimationFrame(loop);
+  }
+
+  function cellFromEvent(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const x = Math.floor((clientX - rect.left) / CELL);
+    const y = Math.floor((clientY - rect.top) / CELL);
+    return { x, y };
+  }
+
+  function paintAt(e) {
+    const { x, y } = cellFromEvent(e);
+    if (x < 0 || x >= cols || y < 0 || y >= rows) return;
+    grid[idx(x, y)] = drawValue;
+    draw();
+  }
+
+  canvas.addEventListener('mousedown', (e) => {
+    isDrawing = true;
+    const { x, y } = cellFromEvent(e);
+    if (x >= 0 && x < cols && y >= 0 && y < rows) {
+      drawValue = grid[idx(x, y)] ? 0 : 1;
+    }
+    paintAt(e);
+  });
+  window.addEventListener('mouseup', () => { isDrawing = false; });
+  canvas.addEventListener('mousemove', (e) => { if (isDrawing) paintAt(e); });
+
+  canvas.addEventListener('touchstart', (e) => {
+    isDrawing = true;
+    const { x, y } = cellFromEvent(e);
+    if (x >= 0 && x < cols && y >= 0 && y < rows) {
+      drawValue = grid[idx(x, y)] ? 0 : 1;
+    }
+    paintAt(e);
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener('touchmove', (e) => { if (isDrawing) { paintAt(e); e.preventDefault(); } }, { passive: false });
+  window.addEventListener('touchend', () => { isDrawing = false; });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+      running = !running;
+      e.preventDefault();
+    } else if (e.key.toLowerCase() === 'r') {
+      randomize();
+      draw();
+    } else if (e.key.toLowerCase() === 'c') {
+      clearGrid();
+      draw();
+    }
+  });
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>

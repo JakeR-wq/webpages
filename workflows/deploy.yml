@@ -1,0 +1,31 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+    env:
+      KUBECONFIG: /home/jake/.kube/config
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply k8s manifests
+        run: |
+          kubectl apply -k k8s/
+
+      - name: Update index.html ConfigMap
+        run: |
+          kubectl create configmap homepage-web-nginx-conf \
+            --from-file=index.html=index.html \
+            -n homepage \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Roll out homepage
+        run: |
+          kubectl rollout restart deployment/homepage-web -n homepage
+          kubectl rollout status deployment/homepage-web -n homepage --timeout=120s
